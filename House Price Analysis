@@ -1,0 +1,95 @@
+data<-read.csv("dataset_zillow-api-scraper.csv")
+head(data)
+
+#Checks how many points are not detroit
+f <- (data$ï..address.city == 'Detroit') 
+#returns number of false for not detroit
+length(f[f==FALSE])
+#rename few columns
+data = data.frame(data)
+data<-data %>% rename(city = ï..address.city, zipcode = address.zipcode,address= 
+address.streetAddress, sqft=livingArea)
+attach(data)
+
+#delete rows that are not detroit 
+data<-data[!(data$city=="Dearborn" | data$city=="Highland Park"| 
+data$city=="Hamtramck"|data$city=="Grosse Pointe"),]
+#Check to see if other cities are deleted
+g <- (data$city == 'Detroit') 
+length(g[g==FALSE])
+
+#Delete unwanted columns
+data = subset(data, select = -
+c(city,address.community,address.neighborhood,address.state,address.subdivision,description, 
+homeStatus, url, currency, address))
+
+#Assign NA to blank cells
+data <- data %>% mutate_all(na_if,"")
+#Replace NA values for all photos to 0 
+which( colnames(data)=="photos.0" )
+which( colnames(data)=="photos.98" )
+data[, 7:105][is.na(data[, 7:105])] <- 0
+
+# replace url with 1
+data[, 7:105][(data[, 7:105])!=0] <- 1
+#Convert chracter values to numeric values
+data[, 7:105] <- sapply(data[,7:105], as.numeric)
+#sum rows of photos
+data$photos = rowSums(data[,7:105])
+data <- filter(data, price > 0,bedrooms>0,bathrooms>0)
+attach(data)
+
+#Delete unwanted columns
+data <- data[ -c(7:105) ]
+glimpse(data)
+
+#Omit NA values
+data<-na.omit(data)
+glimpse(data)
+
+#scatterplots
+plot(sqft,price)
+plot(log(sqft+1),log(price+1))
+plot(zipcode,price)
+plot(bathrooms,price)
+plot(longitude,price)
+plot(latitude,price)
+plot(bedrooms,price)
+plot(zipcode,price)
+plot(photos,price)
+plot(yearBuilt,price)
+
+#split data
+RNGkind(sample.kind = "Rounding")
+set.seed(415)
+idx <- sample(nrow(data), nrow(data)* 0.8)
+train <- data[idx,]
+test <- data[ -idx,]
+
+#corr
+ggcorr(train, label = T, hjust = 1, layout.exp = 3)
+
+#model 1
+model1 <- lm(price ~sqft+bathrooms+bedrooms+as.factor(zipcode)+photos+yearBuilt, data =train)
+summary(model1)
+test$pred1 <- predict(model1, test)
+plot(model1)
+hist(test$pred1)
+vif(model1)
+
+#model 2
+model2 <- lm(log(price+1) ~log(sqft+1)+bedrooms+bathrooms+as.factor(zipcode)+photos+yearBuilt, 
+data = train)
+summary(model2)
+test$pred2 <- predict(model2, test)
+plot(model2)
+hist(test$pred2)
+vif(model2)
+
+#model 3
+model4 <- lm(price ~latitude+longitude + I(latitude*longitude) + I(latitude^2)+ I(longitude^2) ,data = 
+train)
+summary(model4)
+test$pred4 <- predict(model4, test)
+plot(model4)
+hist(test$pred4)
